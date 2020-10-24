@@ -50,6 +50,8 @@ namespace sinsy
 {
 class Converter;
 class JConf;
+class CConf;
+class EConf;
 
 class ConfManager
 {
@@ -76,8 +78,8 @@ private:
    //! clear all confs
    void clear();
 
-   //! add Japanese conf
-   void addJConf(IConf* conf);
+   //! add conf
+   void addConf(IConf* conf);
 
    //! Japanese conf (UTF-8)
    JConf* uJConf;
@@ -88,8 +90,14 @@ private:
    //! Japanese conf (EUC-JP)
    JConf* eJConf;
 
-   //! japanese confs
-   ConfGroup* jConfs;
+   //! confs
+   ConfGroup* confs;
+
+   //! Chinese conf (UTF-8)
+   CConf* uCConf;
+
+   //! English conf (UTF-8)
+   EConf* uEConf;
 
    //! conf for unknown language
    const UnknownConf uConf;
