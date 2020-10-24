@@ -55,6 +55,7 @@ void usage()
    std::cout << "The HMM-Based Singing Voice Syntheis System \"Sinsy\"" << std::endl;
    std::cout << "Version 0.92 (http://sinsy.sourceforge.net/)" << std::endl;
    std::cout << "Copyright (C) 2009-2015 Nagoya Institute of Technology" << std::endl;
+   std::cout << "Copyright (C) 2017-2018 HyperZLink (a.k.a hyperzlib / Quantum)" << std::endl;
    std::cout << "All rights reserved." << std::endl;
    std::cout << "" << std::endl;
    std::cout << "The HMM-Based Speech Synthesis Engine \"hts_engine API\"" << std::endl;
@@ -70,7 +71,8 @@ void usage()
    std::cout << "  options:                                           [def]" << std::endl;
    std::cout << "    -w langs    : languages                          [  j]" << std::endl;
    std::cout << "                  j: Japanese                             " << std::endl;
-   std::cout << "                  (Currently, you can set only Japanese)  " << std::endl;
+   std::cout << "                  c: Chinese                              " << std::endl;
+   std::cout << "                  e: English                              " << std::endl;
    std::cout << "    -x dir      : dictionary directory               [N/A]" << std::endl;
    std::cout << "    -m htsvoice : HTS voice file                     [N/A]" << std::endl;
    std::cout << "    -o file     : filename of output wav audio       [N/A]" << std::endl;
