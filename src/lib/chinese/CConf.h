@@ -6,6 +6,7 @@
 /*                                                                   */
 /*  Copyright (c) 2009-2015  Nagoya Institute of Technology          */
 /*                           Department of Computer Science          */
+/*  Copyright (C) 2017-2018 HyperZLink (a.k.a hyperzlib / Quantum)   */
 /*                                                                   */
 /* All rights reserved.                                              */
 /*                                                                   */

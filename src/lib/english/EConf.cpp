@@ -6,6 +6,7 @@
 /*                                                                   */
 /*  Copyright (c) 2009-2015  Nagoya Institute of Technology          */
 /*                           Department of Computer Science          */
+/*  Copyright (C) 2017-2018 HyperZLink (a.k.a hyperzlib / Quantum)   */
 /*                                                                   */
 /* All rights reserved.                                              */
 /*                                                                   */
@@ -123,66 +124,6 @@ public:
       return PhonemeInfo::TYPE_VOWEL;
    }
 
-   PhonemeTable::PhonemeList *parseLyric(const std::string& phoneme, int *sLen = NULL) const {
-      std::string consonant;
-      std::string vowel;
-      int findId = 0;
-      int matchLen = 0;
-      if(sLen != NULL) *sLen = 0;
-      PhonemeTable::PhonemeList *phonemeList(new PhonemeTable::PhonemeList);
-      if(phoneme.length() == 0){
-         return phonemeList;
-      }
-      for(std::set<std::string>::iterator itr = consonants.begin(); itr != consonants.end(); itr ++){
-         findId = phoneme.find(*itr);
-         if(findId == 0){
-            //找到辅音
-            if((*itr).length() > matchLen){
-               consonant = *itr;
-               matchLen = consonant.length();
-            }
-         }
-      }
-
-      if(matchLen != 0){
-         vowel = phoneme.substr(consonant.length(), vowel.length() - consonant.length());
-         if(vowel.length() > 0){
-            if(consonant == "y" && (vowel[0] == 'v' || vowel[0] == 'u')){
-               vowel[0] = 'v';
-               consonant = "yy";
-            } else if((consonant == "j" || consonant == "q" || consonant == "x") && vowel[0] == 'u'){
-               vowel[0] = 'v';
-            } else if((consonant == "p" || consonant == "f" || consonant == "m") && vowel == "o"){
-               vowel = "uo";
-            } else if((consonant == "ch" || consonant == "sh" || consonant == "zh" || consonant == "r") && vowel == "i"){
-               vowel = "iii";
-            } else if((consonant == "c" || consonant == "s" || consonant == "z") && vowel == "i"){
-               vowel = "ii";
-            }
-         }
-         phonemeList->push_back(consonant);
-         phonemeList->push_back(vowel);
-         if(sLen != NULL) *sLen = consonant.length() + vowel.length();
-      } else {
-         if(phoneme == "i"){
-            phonemeList->push_back("y");
-            phonemeList->push_back(phoneme);
-            if(sLen != NULL) *sLen = phoneme.length() + 1;
-         } else if(phoneme == "v"){
-            phonemeList->push_back("yy");
-            phonemeList->push_back(phoneme);
-            if(sLen != NULL) *sLen = phoneme.length() + 2;
-         } else if(phoneme == "u"){
-            phonemeList->push_back("u");
-            phonemeList->push_back(phoneme);
-            if(sLen != NULL) *sLen = phoneme.length() + 1;
-         } else {
-            phonemeList->push_back(phoneme);
-            if(sLen != NULL) *sLen = phoneme.length();
-         }
-      }
-      return phonemeList;
-   }
 
 private:
    //! copy constructor (donot use)
@@ -227,7 +168,7 @@ public:
    //! add syllable
    void addSyllable(const PhonemeTable::PhonemeList& p, bool vowelReductionFlag) {
       if (p.empty()) { // fail safe
-         WARN_MSG("Cannot add Chinese syllable : no phonemes");
+         WARN_MSG("Cannot add English syllable : no phonemes");
          return;
       }
       bool clFlag = ((1 == p.size()) && (clPhoneme == p[0])) ? true : false;

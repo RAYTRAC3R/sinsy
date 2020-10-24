@@ -6,6 +6,7 @@
 /*                                                                   */
 /*  Copyright (c) 2009-2015  Nagoya Institute of Technology          */
 /*                           Department of Computer Science          */
+/*  Copyright (C) 2017-2018 HyperZLink (a.k.a hyperzlib / Quantum)   */
 /*                                                                   */
 /* All rights reserved.                                              */
 /*                                                                   */
@@ -136,7 +137,7 @@ public:
       for(std::set<std::string>::iterator itr = consonants.begin(); itr != consonants.end(); itr ++){
          findId = phoneme.find(*itr);
          if(findId == 0){
-            //找到辅音
+            //Consonant
             if((*itr).length() > matchLen){
                consonant = *itr;
                matchLen = consonant.length();
