@@ -28,6 +28,8 @@ configure_file(sinsy.pc.in "${PROJECT_BINARY_DIR}/sinsy.pc" @ONLY)
 aux_source_directory(lib/converter converter_source)
 aux_source_directory(lib/hts_engine_API hts_engine_API_source)
 aux_source_directory(lib/japanese japanese_source)
+aux_source_directory(lib/english english_source)
+aux_source_directory(lib/chinese chinese_source)
 aux_source_directory(lib/label label_source)
 aux_source_directory(lib/score score_source)
 aux_source_directory(lib/temporary temporary_source)
@@ -41,6 +43,8 @@ include_directories(sinsy
   lib/converter
   lib/hts_engine_API
   lib/japanese
+  lib/english
+  lib/chinese
   lib/label
   lib/score
   lib/temporary
@@ -50,7 +54,8 @@ include_directories(sinsy
   )
 
 add_library(sinsy lib/Sinsy.cpp
-  ${converter_source} ${hts_engine_API_source} ${japanese_source} ${label_source}
+  ${converter_source} ${hts_engine_API_source} ${japanese_source}
+  ${english_source} ${chinese_source} ${label_source}
   ${score_source} ${temporary_source} ${util_source} ${xml_source})
 set_target_properties(sinsy PROPERTIES
   VERSION ${PROJECT_VER}

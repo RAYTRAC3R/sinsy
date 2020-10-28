@@ -513,16 +513,35 @@ bool EConf::convert(const std::string& enc, ConvertableList::iterator begin, Con
    std::vector<InfoAdder*> infoAdderList;
 
    for (ConvertableList::iterator itr(begin); itr != end; ++itr) {
-      IConvertable& convertable(**itr);
-
       InfoAdder* infoAdder = new InfoAdder(**itr, clSymbol, phonemeJudge);
-
-      std::string lyric(convertable.getLyric());
-
+      int syllable_num = 1;
+      std::string lyric;
+      
+      Syllabic cur_syllabic((*itr)->getSyllabic());
+      if (Syllabic::BEGIN == cur_syllabic)  {
+	  // word is splitted into some syllables
+	  lyric = (*itr)->getLyric();
+	  
+	  ConvertableList::iterator intra_syl_itr(std::next(itr));
+	  syllabic = (*intra_syl_itr)->getSyllabic();
+	  while (Syllabic::BEGIN != syllabic && Syllabic::SINGLE != syllabic)  {
+	      // Concatenate lyric until the end of syllables
+	      lyric += (*intra_syl_itr)->getLyric();
+	      ++syllable_num;
+	      if (intra_syl_itr == end) {
+		  // Exit loop because intra_syl_itr points the end of ConvertableList
+		  break;
+	      }	 else {
+		  ++intra_syl_itr;
+		  syllabic= (*intra_syl_itr)->getSyllabic();
+	      }
+	  }
+      } else if (Syllabic::SINGLE == cur_syllabic) {
+	  lyric = (*itr)->getLyric();
+      }
       ScoreFlag scoreFlag(analyzeScoreFlags(lyric, &multibyteCharRange));
 
       size_t pos = std::string::npos;
-
 
       infoAdder->setScoreFlag(scoreFlag);
       while (!lyric.empty()) {
@@ -547,6 +566,13 @@ bool EConf::convert(const std::string& enc, ConvertableList::iterator begin, Con
             lyric.erase(0, result.getMatchedLength());
             const PhonemeTable::PhonemeList* phonemes(result.getPhonemeList());
 
+	    if (Syllabic::BEGIN == cur_syllabic)  {
+		const std::vector<PhonemeTable::PhonemeList*> phonemes_stack = split_phonemes(phonemes);
+		
+	    for (int i(0); i < phonemes->size(); i++) {
+		std::cout << (*phonemes)[i] << std::endl;
+	    }
+	    
             //  vowel reduction symbol
             bool vl = false;
             if (!vowelReductionSymbol.empty() && (0 == lyric.compare(0, vowelReductionSymbol.size(), vowelReductionSymbol))) { // vowel reduction
