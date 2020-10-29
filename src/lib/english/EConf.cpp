@@ -62,8 +62,6 @@ const std::string SIL_STR = "sil";
 const std::string SEPARATOR = ",";
 const std::string LANGUAGE_INFO = "ENG";
 const std::string MACRON = "MACRON";
-const std::string VOWEL_REDUCTION = "VOWEL_REDUCTION";
-const std::string PHONEME_CL = "PHONEME_CL";
 const std::string VOWELS = "VOWELS";
 const std::string CONSONANTS = "CONSONANTS";
 const std::string MULTIBYTE_CHAR_RANGE = "MULTIBYTE_CHAR_RANGE";
@@ -74,7 +72,7 @@ class PhonemeJudge
 {
 public:
    //! constructor
-   PhonemeJudge(const std::string& c, const std::string& v, const std::string& b) {
+   PhonemeJudge(const std::string& c, const std::string& v) {
       {
          StringTokenizer st(c, PHONEME_SEPARATOR);
          size_t sz(st.size());
@@ -97,17 +95,6 @@ public:
             }
          }
       }
-      {
-         StringTokenizer st(b, PHONEME_SEPARATOR);
-         size_t sz(st.size());
-         for (size_t i(0); i < sz; ++i) {
-            std::string phoneme(st.at(i));
-            cutBlanks(phoneme);
-            if (!phoneme.empty()) {
-               this->breaks.insert(phoneme);
-            }
-         }
-      }
    }
 
    //! destructor
@@ -117,9 +104,6 @@ public:
    const std::string& getType(const std::string& phoneme) const {
       if (consonants.end() != consonants.find(phoneme)) {
          return PhonemeInfo::TYPE_CONSONANT;
-      }
-      if (breaks.end() != breaks.find(phoneme)) {
-         return PhonemeInfo::TYPE_BREAK;
       }
       return PhonemeInfo::TYPE_VOWEL;
    }
@@ -137,17 +121,14 @@ private:
 
    //! vowels
    std::set<std::string> vowels;
-
-   //! breaks such as /cl/
-   std::set<std::string> breaks;
 };
 
 class InfoAdder
 {
 public:
    //! constructor
-   InfoAdder(sinsy::IConvertable& c, const std::string& cl, const PhonemeJudge& pj) :
-      convertable(c), clPhoneme(cl), phonemeJudge(pj), waiting(false), vowelReductionIdx(INVALID_IDX), scoreFlag(0), macronFlag(false) {
+   InfoAdder(sinsy::IConvertable& c, const PhonemeJudge& pj) :
+      convertable(c), phonemeJudge(pj), waiting(false), scoreFlag(0), macronFlag(false) {
    }
 
    //! destructor
@@ -166,41 +147,13 @@ public:
    }
 
    //! add syllable
-   void addSyllable(const PhonemeTable::PhonemeList& p, bool vowelReductionFlag) {
+   void addSyllable(const PhonemeTable::PhonemeList& p) {
       if (p.empty()) { // fail safe
          WARN_MSG("Cannot add English syllable : no phonemes");
          return;
       }
-      bool clFlag = ((1 == p.size()) && (clPhoneme == p[0])) ? true : false;
-
-      if (clFlag) { // cl
-         if (ptrList.empty()) { // first time
-            ptrList.push_back(new PhonemeTable::PhonemeList(p));
-            waiting = true;
-         } else if (ptrList.back()->back() != clPhoneme) { // over second time, and not following cl
-            ptrList.back()->push_back(clPhoneme);
-         }
-      } else { // not cl
-         if (waiting) { // previous syllable has vowel reduction
-            PhonemeTable::PhonemeList* prevPhonemes(ptrList.back());
-            if (INVALID_IDX != vowelReductionIdx) {
-               prevPhonemes->erase(prevPhonemes->begin() + vowelReductionIdx);
-            }
-            std::copy(p.begin(), p.end(), std::back_inserter(*prevPhonemes));
-            waiting = false;
-            vowelReductionIdx = INVALID_IDX;
-         } else {
-            ptrList.push_back(new PhonemeTable::PhonemeList(p));
-         }
-      }
-
-      if (vowelReductionFlag) {
-         if (1 == p.size()) { // vowels, cl
-            WARN_MSG("Vowel reduction symbol was ignored : only one  phoneme \"" << p[0] << "\"");
-         } else {
-            waiting = true;
-            vowelReductionIdx = ptrList.back()->size() - 1; // last phoneme ( = vowel)
-         }
+      { // not cl
+	  ptrList.push_back(new PhonemeTable::PhonemeList(p));
       }
    }
 
@@ -220,17 +173,6 @@ public:
       return ptrList.back();
    }
 
-   //! cancel vowel reduction of last syllable
-   void cancelVowelReductionOfLastSyllable() {
-      if (ptrList.empty()) {
-         return;
-      }
-      if (waiting) { // previous syllable has vowel reduction
-         waiting = false;
-         vowelReductionIdx = INVALID_IDX;
-      }
-   }
-
 private:
    //! copy constructor (donot use)
    InfoAdder(const InfoAdder&);
@@ -241,23 +183,6 @@ private:
    //! reflect to convertable
    void reflect() {
       if (ptrList.empty()) return;
-
-      // last syllable has silent vowel
-      if (waiting) {
-         if (ptrList.size() <= 1) {
-            WARN_MSG("Syllable that has vowel reductions needs previous or next syllable");
-         } else {
-            PhonemeTable::PhonemeList* lastPhonemes(ptrList.back());
-            ptrList.pop_back();
-            if (INVALID_IDX != vowelReductionIdx) {
-               lastPhonemes->erase(lastPhonemes->begin() + vowelReductionIdx);
-            }
-            std::copy(lastPhonemes->begin(), lastPhonemes->end(), std::back_inserter(*(ptrList.back())));
-            delete lastPhonemes;
-         }
-         waiting = false;
-         vowelReductionIdx = INVALID_IDX;
-      }
 
       // add
       {
@@ -303,17 +228,11 @@ private:
    //! target
    sinsy::IConvertable& convertable;
 
-   //! phoneme of cl
-   const std::string clPhoneme;
-
    //! phoneme type judge
    const PhonemeJudge& phonemeJudge;
 
    //! waiting flag
    bool waiting;
-
-   //! index of vowel reduction
-   size_t vowelReductionIdx;
 
    //! score flag
    ScoreFlag scoreFlag;
@@ -392,7 +311,7 @@ bool setMultibyteCharRange(MultibyteCharRange& mRange, const std::string& str)
 /*!
  expand prevInfoAdder to infoAdder
  */
-bool expand(InfoAdder& prevInfoAdder, InfoAdder& infoAdder, const MacronTable& macronTable, const std::string& clSymbol)
+bool expand(InfoAdder& prevInfoAdder, InfoAdder& infoAdder, const MacronTable& macronTable)
 {
    if (NULL != infoAdder.getLastPhonemes()) { // fail safe
       ERR_MSG("Dst InfoAdder is not empty (Source code is wrong)");
@@ -407,25 +326,11 @@ bool expand(InfoAdder& prevInfoAdder, InfoAdder& infoAdder, const MacronTable& m
    PhonemeTable::PhonemeList dst2;
    if (macronTable.divide(*prevPhonemes, dst1, dst2)) {
       *prevPhonemes = dst1;
-      infoAdder.addSyllable(dst2, false);
+      infoAdder.addSyllable(dst2);
    } else {
-      if (clSymbol == prevPhonemes->back()) { // "cl"
-         WARN_MSG("Macron cannot follow double consonant(cl)");
-
-         // retry after erasing "cl" from phoneme list of previous InfoAdder
-         prevPhonemes->pop_back();
-         if (!expand(prevInfoAdder, infoAdder, macronTable, clSymbol)) {
-            return false;
-         }
-         // add "cl"
-         PhonemeTable::PhonemeList* pl(infoAdder.getLastPhonemes());
-         if (NULL == pl) {
-            return false;
-         }
-         pl->push_back(clSymbol);
-      } else { // not "cl"
+       { // not "cl"
          dst2.push_back(prevPhonemes->back());
-         infoAdder.addSyllable(dst2, false);
+         infoAdder.addSyllable(dst2);
       }
    }
    return true;
@@ -503,17 +408,15 @@ bool EConf::convert(const std::string& enc, ConvertableList::iterator begin, Con
    }
 
    const std::string macronSymbol(config.get(MACRON));
-   const std::string clSymbol(config.get(PHONEME_CL));
-   const std::string vowelReductionSymbol(config.get(VOWEL_REDUCTION));
    std::string vowels(config.get(VOWELS));
    std::string consonants(config.get(CONSONANTS));
 
-   PhonemeJudge phonemeJudge(consonants, vowels, clSymbol);
+   PhonemeJudge phonemeJudge(consonants, vowels);
 
    std::vector<InfoAdder*> infoAdderList;
 
    for (ConvertableList::iterator itr(begin); itr != end; ++itr) {
-      InfoAdder* infoAdder = new InfoAdder(**itr, clSymbol, phonemeJudge);
+      InfoAdder* infoAdder = new InfoAdder(**itr, phonemeJudge);
       int syllable_num = 1;
       std::string lyric;
       
@@ -523,7 +426,7 @@ bool EConf::convert(const std::string& enc, ConvertableList::iterator begin, Con
 	  lyric = (*itr)->getLyric();
 	  
 	  ConvertableList::iterator intra_syl_itr(std::next(itr));
-	  syllabic = (*intra_syl_itr)->getSyllabic();
+	  Syllabic syllabic((*intra_syl_itr)->getSyllabic());
 	  while (Syllabic::BEGIN != syllabic && Syllabic::SINGLE != syllabic)  {
 	      // Concatenate lyric until the end of syllables
 	      lyric += (*intra_syl_itr)->getLyric();
@@ -545,16 +448,11 @@ bool EConf::convert(const std::string& enc, ConvertableList::iterator begin, Con
 
       infoAdder->setScoreFlag(scoreFlag);
       while (!lyric.empty()) {
-         if (!vowelReductionSymbol.empty() && (0 == lyric.compare(0, vowelReductionSymbol.size(), vowelReductionSymbol))) { // vowel reduction
-            WARN_MSG("Vowel reduction symbol appeared at the invalid place");
-            lyric.erase(0, vowelReductionSymbol.size());
-         } else if (0 == lyric.compare(0, macronSymbol.size(), macronSymbol)) { // macron
-            if (NULL != infoAdder->getLastPhonemes()) {
-               infoAdder->cancelVowelReductionOfLastSyllable();
-            } else if (infoAdderList.empty()) {
+	 if (0 == lyric.compare(0, macronSymbol.size(), macronSymbol)) { // macron
+	    if (infoAdderList.empty()) {
                WARN_MSG("Macron have to follow another lyric");
             } else {
-               expand(*(infoAdderList.back()), *infoAdder, macronTable, clSymbol);
+               expand(*(infoAdderList.back()), *infoAdder, macronTable);
             }
             infoAdder->setMacronFlag(true);
             lyric.erase(0, macronSymbol.size());
@@ -567,39 +465,20 @@ bool EConf::convert(const std::string& enc, ConvertableList::iterator begin, Con
             const PhonemeTable::PhonemeList* phonemes(result.getPhonemeList());
 
 	    if (Syllabic::BEGIN == cur_syllabic)  {
-		const std::vector<PhonemeTable::PhonemeList*> phonemes_stack = split_phonemes(phonemes);
+		for (int i(0); i < phonemes->size(); i++) {
+		    const std::string phoneme = (*phonemes)[i];
+		    if (PhonemeInfo::TYPE_VOWEL == phonemeJudge.getType(phoneme)) {
+			std::cout << "VOWEL" << std::endl;
+		    } else if (PhonemeInfo::TYPE_CONSONANT == phonemeJudge.getType(phoneme)) {
+			std::cout << "CONSONANT" << std::endl;
+		    }
+		    
+		    std::cout << phoneme << std::endl;
+		}
 		
-	    for (int i(0); i < phonemes->size(); i++) {
-		std::cout << (*phonemes)[i] << std::endl;
 	    }
 	    
-            //  vowel reduction symbol
-            bool vl = false;
-            if (!vowelReductionSymbol.empty() && (0 == lyric.compare(0, vowelReductionSymbol.size(), vowelReductionSymbol))) { // vowel reduction
-               vl = true;
-               lyric.erase(0, vowelReductionSymbol.size());
-            }
-
-            // cl
-            if (!clSymbol.empty() && (1 == phonemes->size()) && (clSymbol == (*phonemes)[0])) {
-               if (NULL == infoAdder->getLastPhonemes()) { // first phoneme in this note
-                  std::string l(lyric);
-                  while (std::string::npos != (pos = l.find(vowelReductionSymbol))) { // erase vowel reduction symbols
-                     l.erase(pos, vowelReductionSymbol.size());
-                  }
-                  while (std::string::npos != (pos = l.find(macronSymbol))) { // erase macrons
-                     l.erase(pos, macronSymbol.size());
-                  }
-                  if (l.empty()) { // only cl
-                     if (infoAdderList.empty()) {
-                        WARN_MSG("If there is only a phoneme \"cl\" in a note, \"cl\" have to follow vowel");
-                     } else {
-                        expand(*(infoAdderList.back()), *infoAdder, macronTable, clSymbol);
-                     }
-                  }
-               }
-            }
-            infoAdder->addSyllable(*phonemes, vl);
+            infoAdder->addSyllable(*phonemes);
          }
       }
       infoAdderList.push_back(infoAdder);
