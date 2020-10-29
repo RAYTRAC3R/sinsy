@@ -43,7 +43,8 @@
 #include <iostream>
 #include <stdexcept>
 #include <limits>
-#include <deque>
+#include <queue>
+#include <memory>
 #include <vector>
 #include <iterator>
 #include "util_log.h"
@@ -62,6 +63,7 @@ const std::string SIL_STR = "sil";
 const std::string SEPARATOR = ",";
 const std::string LANGUAGE_INFO = "ENG";
 const std::string MACRON = "MACRON";
+const std::string SYLLABLE_DELIMITER = "SYLLABLE_DELIMITER";
 const std::string VOWELS = "VOWELS";
 const std::string CONSONANTS = "CONSONANTS";
 const std::string MULTIBYTE_CHAR_RANGE = "MULTIBYTE_CHAR_RANGE";
@@ -328,10 +330,9 @@ bool expand(InfoAdder& prevInfoAdder, InfoAdder& infoAdder, const MacronTable& m
       *prevPhonemes = dst1;
       infoAdder.addSyllable(dst2);
    } else {
-       { // not "cl"
-         dst2.push_back(prevPhonemes->back());
-         infoAdder.addSyllable(dst2);
-      }
+      // not "cl"
+      dst2.push_back(prevPhonemes->back());
+      infoAdder.addSyllable(dst2);
    }
    return true;
 }
@@ -400,87 +401,85 @@ bool EConf::read(const std::string& table, const std::string& conf, const std::s
 /*!
  convert lyrics to phonemes
 */
-bool EConf::convert(const std::string& enc, ConvertableList::iterator begin, ConvertableList::iterator end) const
-{
+   bool EConf::convert(const std::string& enc, ConvertableList::iterator begin, ConvertableList::iterator end) const
+   {
    // check encoding
    if (!checkEncoding(enc)) {
       return true; // no relation
    }
 
    const std::string macronSymbol(config.get(MACRON));
+   const std::string delimiterSymbol(config.get(SYLLABLE_DELIMITER));
    std::string vowels(config.get(VOWELS));
    std::string consonants(config.get(CONSONANTS));
 
    PhonemeJudge phonemeJudge(consonants, vowels);
 
    std::vector<InfoAdder*> infoAdderList;
+   std::queue<std::shared_ptr<PhonemeTable::PhonemeList>> queue;
 
    for (ConvertableList::iterator itr(begin); itr != end; ++itr) {
       InfoAdder* infoAdder = new InfoAdder(**itr, phonemeJudge);
-      int syllable_num = 1;
       std::string lyric;
-      
-      Syllabic cur_syllabic((*itr)->getSyllabic());
-      if (Syllabic::BEGIN == cur_syllabic)  {
-	  // word is splitted into some syllables
-	  lyric = (*itr)->getLyric();
+      Syllabic syllabic((*itr)->getSyllabic());
+      if (Syllabic::BEGIN == syllabic)  {
+	 // word ranges several notes
+	 lyric = (*itr)->getLyric();
 	  
-	  ConvertableList::iterator intra_syl_itr(std::next(itr));
-	  Syllabic syllabic((*intra_syl_itr)->getSyllabic());
-	  while (Syllabic::BEGIN != syllabic && Syllabic::SINGLE != syllabic)  {
-	      // Concatenate lyric until the end of syllables
-	      lyric += (*intra_syl_itr)->getLyric();
-	      ++syllable_num;
-	      if (intra_syl_itr == end) {
-		  // Exit loop because intra_syl_itr points the end of ConvertableList
-		  break;
-	      }	 else {
-		  ++intra_syl_itr;
-		  syllabic= (*intra_syl_itr)->getSyllabic();
-	      }
-	  }
-      } else if (Syllabic::SINGLE == cur_syllabic) {
-	  lyric = (*itr)->getLyric();
+	 ConvertableList::iterator intra_syl_itr(std::next(itr));
+	 while (Syllabic::END != (*intra_syl_itr)->getSyllabic())  {
+	    // Concatenate lyric until the end of syllables
+	    lyric += (*intra_syl_itr)->getLyric();
+	    ++intra_syl_itr;
+	 }
+	 // Add last syllable
+	 lyric += (*intra_syl_itr)->getLyric();
+      } else if (Syllabic::SINGLE == syllabic) {
+	 lyric = (*itr)->getLyric();
+      } else if (Syllabic::MIDDLE == syllabic || Syllabic::END == syllabic ) {
+	 // Nothing to do
       }
+      
       ScoreFlag scoreFlag(analyzeScoreFlags(lyric, &multibyteCharRange));
-
-      size_t pos = std::string::npos;
-
+      
       infoAdder->setScoreFlag(scoreFlag);
-      while (!lyric.empty()) {
-	 if (0 == lyric.compare(0, macronSymbol.size(), macronSymbol)) { // macron
-	    if (infoAdderList.empty()) {
-               WARN_MSG("Macron have to follow another lyric");
-            } else {
-               expand(*(infoAdderList.back()), *infoAdder, macronTable);
-            }
-            infoAdder->setMacronFlag(true);
-            lyric.erase(0, macronSymbol.size());
-         } else { // others
-            PhonemeTable::Result result(phonemeTable.find(lyric));
-            if (!result.isValid()) {
-               break;
-            }
-            lyric.erase(0, result.getMatchedLength());
-            const PhonemeTable::PhonemeList* phonemes(result.getPhonemeList());
+      if (Syllabic::BEGIN == syllabic || Syllabic::SINGLE == syllabic)  {
+	 while (!lyric.empty()) {
+	    if (0 == lyric.compare(0, macronSymbol.size(), macronSymbol)) { // macron
+	       if (infoAdderList.empty()) {
+		  WARN_MSG("Macron have to follow another lyric");
+	       } else {
+		  expand(*(infoAdderList.back()), *infoAdder, macronTable);
+	       }
+	       infoAdder->setMacronFlag(true);
+	       lyric.erase(0, macronSymbol.size());
+	    } else { // others
+	       PhonemeTable::Result result(phonemeTable.find(lyric));
+	       if (!result.isValid()) {
+		  break;
+	       }
+	       lyric.erase(0, result.getMatchedLength());
+	       const PhonemeTable::PhonemeList* phonemes(result.getPhonemeList());
 
-	    if (Syllabic::BEGIN == cur_syllabic)  {
-		for (int i(0); i < phonemes->size(); i++) {
-		    const std::string phoneme = (*phonemes)[i];
-		    if (PhonemeInfo::TYPE_VOWEL == phonemeJudge.getType(phoneme)) {
-			std::cout << "VOWEL" << std::endl;
-		    } else if (PhonemeInfo::TYPE_CONSONANT == phonemeJudge.getType(phoneme)) {
-			std::cout << "CONSONANT" << std::endl;
-		    }
-		    
-		    std::cout << phoneme << std::endl;
-		}
-		
+	       std::shared_ptr<PhonemeTable::PhonemeList> plptr (new PhonemeTable::PhonemeList);
+	       queue.push(plptr);
+	       for (int i(0); i < phonemes->size(); i++) {
+		  const std::string phoneme = (*phonemes)[i];
+		  if (0 == phoneme.compare(0, delimiterSymbol.size(), delimiterSymbol)) {
+		     // New syllable
+		     std::shared_ptr<PhonemeTable::PhonemeList> plptr (new PhonemeTable::PhonemeList);
+		     queue.push(plptr);
+		  } else {
+		     // Add phoneme to the newest PhonemeTable::PhonemeList
+		     queue.back()->push_back(phoneme);
+		  }
+	       }
 	    }
-	    
-            infoAdder->addSyllable(*phonemes);
          }
       }
+      infoAdder->addSyllable((*queue.front().get()));
+      // Delete the oldest PhonemeTable(Destructor should be called.)
+      queue.pop();
       infoAdderList.push_back(infoAdder);
    }
 
