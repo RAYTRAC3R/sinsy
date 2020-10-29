@@ -330,7 +330,6 @@ bool expand(InfoAdder& prevInfoAdder, InfoAdder& infoAdder, const MacronTable& m
       *prevPhonemes = dst1;
       infoAdder.addSyllable(dst2);
    } else {
-      // not "cl"
       dst2.push_back(prevPhonemes->back());
       infoAdder.addSyllable(dst2);
    }
@@ -416,19 +415,19 @@ bool EConf::read(const std::string& table, const std::string& conf, const std::s
    PhonemeJudge phonemeJudge(consonants, vowels);
 
    std::vector<InfoAdder*> infoAdderList;
-   std::queue<std::shared_ptr<PhonemeTable::PhonemeList>> queue;
+   std::queue<std::shared_ptr<PhonemeTable::PhonemeList> > queue;
 
    for (ConvertableList::iterator itr(begin); itr != end; ++itr) {
       InfoAdder* infoAdder = new InfoAdder(**itr, phonemeJudge);
       std::string lyric;
       Syllabic syllabic((*itr)->getSyllabic());
       if (Syllabic::BEGIN == syllabic)  {
-	 // word ranges several notes
+	 // a word is splitted into several syllable and ranges several notes
 	 lyric = (*itr)->getLyric();
 	  
 	 ConvertableList::iterator intra_syl_itr(std::next(itr));
 	 while (Syllabic::END != (*intra_syl_itr)->getSyllabic())  {
-	    // Concatenate lyric until the end of syllables
+	    // Concatenate all syllables
 	    lyric += (*intra_syl_itr)->getLyric();
 	    ++intra_syl_itr;
 	 }
@@ -456,6 +455,7 @@ bool EConf::read(const std::string& table, const std::string& conf, const std::s
 	    } else { // others
 	       PhonemeTable::Result result(phonemeTable.find(lyric));
 	       if (!result.isValid()) {
+		   WARN_MSG("The lyric \"" << lyric  << "\" is not found in the dictionary");
 		  break;
 	       }
 	       lyric.erase(0, result.getMatchedLength());
@@ -464,7 +464,7 @@ bool EConf::read(const std::string& table, const std::string& conf, const std::s
 	       std::shared_ptr<PhonemeTable::PhonemeList> plptr (new PhonemeTable::PhonemeList);
 	       queue.push(plptr);
 	       for (int i(0); i < phonemes->size(); i++) {
-		  const std::string phoneme = (*phonemes)[i];
+		  const std::string phoneme((*phonemes)[i]);
 		  if (0 == phoneme.compare(0, delimiterSymbol.size(), delimiterSymbol)) {
 		     // New syllable
 		     std::shared_ptr<PhonemeTable::PhonemeList> plptr (new PhonemeTable::PhonemeList);
@@ -481,6 +481,14 @@ bool EConf::read(const std::string& table, const std::string& conf, const std::s
       // Delete the oldest PhonemeTable(Destructor should be called.)
       queue.pop();
       infoAdderList.push_back(infoAdder);
+
+      if (Syllabic::END == syllabic && queue.size() != 0)  {
+	  WARN_MSG("The number of notes and syllables do not match.");
+	  // Clear queue
+	  std::queue<std::shared_ptr<PhonemeTable::PhonemeList>> empty;
+	  std::swap(queue, empty);
+      }
+      
    }
 
    // clear list of InfoAdder
